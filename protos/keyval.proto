@@ -1,0 +1,23 @@
+syntax = "proto3";
+package keyval;
+
+option go_package = "github.com/tashima42/keyval";
+
+service Storer {
+  rpc Add(Entry) returns (Entry) {}
+  rpc Get(EntryRequest) returns (Entry) {}
+  rpc Delete(EntryRequest) returns (DeleteResponse) {}
+}
+
+message Entry {
+  string key = 1;
+  string value = 2;
+};
+
+message EntryRequest {
+  string key = 1;
+};
+
+message DeleteResponse {
+  bool deleted = 1;
+}
