@@ -1,0 +1,16 @@
+syntax = "proto3";
+package proto;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/tashima42/keyval";
+
+service Storer {
+  rpc Append(Record) returns (Record) {}
+}
+
+message Record {
+  string key = 1;
+  string value = 2;
+  google.protobuf.Timestamp last_updated = 3;
+};
