@@ -28,9 +28,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type StorerClient interface {
-	Add(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*Entry, error)
-	Get(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*Entry, error)
-	Delete(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	Add(ctx context.Context, in *Record, opts ...grpc.CallOption) (*Record, error)
+	Get(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (*Record, error)
+	Delete(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 }
 
 type storerClient struct {
@@ -41,9 +41,9 @@ func NewStorerClient(cc grpc.ClientConnInterface) StorerClient {
 	return &storerClient{cc}
 }
 
-func (c *storerClient) Add(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*Entry, error) {
+func (c *storerClient) Add(ctx context.Context, in *Record, opts ...grpc.CallOption) (*Record, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Entry)
+	out := new(Record)
 	err := c.cc.Invoke(ctx, Storer_Add_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -51,9 +51,9 @@ func (c *storerClient) Add(ctx context.Context, in *Entry, opts ...grpc.CallOpti
 	return out, nil
 }
 
-func (c *storerClient) Get(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*Entry, error) {
+func (c *storerClient) Get(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (*Record, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Entry)
+	out := new(Record)
 	err := c.cc.Invoke(ctx, Storer_Get_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (c *storerClient) Get(ctx context.Context, in *EntryRequest, opts ...grpc.C
 	return out, nil
 }
 
-func (c *storerClient) Delete(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
+func (c *storerClient) Delete(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteResponse)
 	err := c.cc.Invoke(ctx, Storer_Delete_FullMethodName, in, out, cOpts...)
@@ -75,9 +75,9 @@ func (c *storerClient) Delete(ctx context.Context, in *EntryRequest, opts ...grp
 // All implementations must embed UnimplementedStorerServer
 // for forward compatibility.
 type StorerServer interface {
-	Add(context.Context, *Entry) (*Entry, error)
-	Get(context.Context, *EntryRequest) (*Entry, error)
-	Delete(context.Context, *EntryRequest) (*DeleteResponse, error)
+	Add(context.Context, *Record) (*Record, error)
+	Get(context.Context, *RecordRequest) (*Record, error)
+	Delete(context.Context, *RecordRequest) (*DeleteResponse, error)
 	mustEmbedUnimplementedStorerServer()
 }
 
@@ -88,13 +88,13 @@ type StorerServer interface {
 // pointer dereference when methods are called.
 type UnimplementedStorerServer struct{}
 
-func (UnimplementedStorerServer) Add(context.Context, *Entry) (*Entry, error) {
+func (UnimplementedStorerServer) Add(context.Context, *Record) (*Record, error) {
 	return nil, status.Error(codes.Unimplemented, "method Add not implemented")
 }
-func (UnimplementedStorerServer) Get(context.Context, *EntryRequest) (*Entry, error) {
+func (UnimplementedStorerServer) Get(context.Context, *RecordRequest) (*Record, error) {
 	return nil, status.Error(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedStorerServer) Delete(context.Context, *EntryRequest) (*DeleteResponse, error) {
+func (UnimplementedStorerServer) Delete(context.Context, *RecordRequest) (*DeleteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Delete not implemented")
 }
 func (UnimplementedStorerServer) mustEmbedUnimplementedStorerServer() {}
@@ -119,7 +119,7 @@ func RegisterStorerServer(s grpc.ServiceRegistrar, srv StorerServer) {
 }
 
 func _Storer_Add_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Entry)
+	in := new(Record)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -131,13 +131,13 @@ func _Storer_Add_Handler(srv interface{}, ctx context.Context, dec func(interfac
 		FullMethod: Storer_Add_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StorerServer).Add(ctx, req.(*Entry))
+		return srv.(StorerServer).Add(ctx, req.(*Record))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Storer_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EntryRequest)
+	in := new(RecordRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -149,13 +149,13 @@ func _Storer_Get_Handler(srv interface{}, ctx context.Context, dec func(interfac
 		FullMethod: Storer_Get_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StorerServer).Get(ctx, req.(*EntryRequest))
+		return srv.(StorerServer).Get(ctx, req.(*RecordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Storer_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EntryRequest)
+	in := new(RecordRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func _Storer_Delete_Handler(srv interface{}, ctx context.Context, dec func(inter
 		FullMethod: Storer_Delete_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StorerServer).Delete(ctx, req.(*EntryRequest))
+		return srv.(StorerServer).Delete(ctx, req.(*RecordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

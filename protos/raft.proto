@@ -10,12 +10,18 @@ service Raft {
   rpc RequestVote(RequestVoteRequest) returns(RequestVoteResponse);
 }
 
+message Entry {
+  uint32 term = 1;
+  keyval.Record record = 2;
+}
+
 message AppendEntriesRequest {
   uint32 term = 1;
   string leaderId = 2;
   uint32 prevLogIndex = 3;
-  repeated keyval.Entry entries  = 4;
-  uint32 leaderCommit = 5;
+  uint32 prevLogTerm = 4;
+  repeated Entry entries  = 5;
+  uint32 leaderCommit = 6;
 };
 
 message AppendEntriesResponse {

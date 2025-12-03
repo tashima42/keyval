@@ -21,7 +21,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Entry struct {
+type Record struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
@@ -29,20 +29,20 @@ type Entry struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Entry) Reset() {
-	*x = Entry{}
+func (x *Record) Reset() {
+	*x = Record{}
 	mi := &file_protos_keyval_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Entry) String() string {
+func (x *Record) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Entry) ProtoMessage() {}
+func (*Record) ProtoMessage() {}
 
-func (x *Entry) ProtoReflect() protoreflect.Message {
+func (x *Record) ProtoReflect() protoreflect.Message {
 	mi := &file_protos_keyval_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -54,46 +54,46 @@ func (x *Entry) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Entry.ProtoReflect.Descriptor instead.
-func (*Entry) Descriptor() ([]byte, []int) {
+// Deprecated: Use Record.ProtoReflect.Descriptor instead.
+func (*Record) Descriptor() ([]byte, []int) {
 	return file_protos_keyval_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Entry) GetKey() string {
+func (x *Record) GetKey() string {
 	if x != nil {
 		return x.Key
 	}
 	return ""
 }
 
-func (x *Entry) GetValue() string {
+func (x *Record) GetValue() string {
 	if x != nil {
 		return x.Value
 	}
 	return ""
 }
 
-type EntryRequest struct {
+type RecordRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *EntryRequest) Reset() {
-	*x = EntryRequest{}
+func (x *RecordRequest) Reset() {
+	*x = RecordRequest{}
 	mi := &file_protos_keyval_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *EntryRequest) String() string {
+func (x *RecordRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*EntryRequest) ProtoMessage() {}
+func (*RecordRequest) ProtoMessage() {}
 
-func (x *EntryRequest) ProtoReflect() protoreflect.Message {
+func (x *RecordRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_protos_keyval_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -105,12 +105,12 @@ func (x *EntryRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EntryRequest.ProtoReflect.Descriptor instead.
-func (*EntryRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use RecordRequest.ProtoReflect.Descriptor instead.
+func (*RecordRequest) Descriptor() ([]byte, []int) {
 	return file_protos_keyval_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *EntryRequest) GetKey() string {
+func (x *RecordRequest) GetKey() string {
 	if x != nil {
 		return x.Key
 	}
@@ -165,18 +165,18 @@ var File_protos_keyval_proto protoreflect.FileDescriptor
 
 const file_protos_keyval_proto_rawDesc = "" +
 	"\n" +
-	"\x13protos/keyval.proto\x12\x06keyval\"/\n" +
-	"\x05Entry\x12\x10\n" +
+	"\x13protos/keyval.proto\x12\x06keyval\"0\n" +
+	"\x06Record\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\" \n" +
-	"\fEntryRequest\x12\x10\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"!\n" +
+	"\rRecordRequest\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\"*\n" +
 	"\x0eDeleteResponse\x12\x18\n" +
-	"\adeleted\x18\x01 \x01(\bR\adeleted2\x97\x01\n" +
-	"\x06Storer\x12%\n" +
-	"\x03Add\x12\r.keyval.Entry\x1a\r.keyval.Entry\"\x00\x12,\n" +
-	"\x03Get\x12\x14.keyval.EntryRequest\x1a\r.keyval.Entry\"\x00\x128\n" +
-	"\x06Delete\x12\x14.keyval.EntryRequest\x1a\x16.keyval.DeleteResponse\"\x00B\x1dZ\x1bgithub.com/tashima42/keyvalb\x06proto3"
+	"\adeleted\x18\x01 \x01(\bR\adeleted2\x9c\x01\n" +
+	"\x06Storer\x12'\n" +
+	"\x03Add\x12\x0e.keyval.Record\x1a\x0e.keyval.Record\"\x00\x12.\n" +
+	"\x03Get\x12\x15.keyval.RecordRequest\x1a\x0e.keyval.Record\"\x00\x129\n" +
+	"\x06Delete\x12\x15.keyval.RecordRequest\x1a\x16.keyval.DeleteResponse\"\x00B\x1dZ\x1bgithub.com/tashima42/keyvalb\x06proto3"
 
 var (
 	file_protos_keyval_proto_rawDescOnce sync.Once
@@ -192,16 +192,16 @@ func file_protos_keyval_proto_rawDescGZIP() []byte {
 
 var file_protos_keyval_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_protos_keyval_proto_goTypes = []any{
-	(*Entry)(nil),          // 0: keyval.Entry
-	(*EntryRequest)(nil),   // 1: keyval.EntryRequest
+	(*Record)(nil),         // 0: keyval.Record
+	(*RecordRequest)(nil),  // 1: keyval.RecordRequest
 	(*DeleteResponse)(nil), // 2: keyval.DeleteResponse
 }
 var file_protos_keyval_proto_depIdxs = []int32{
-	0, // 0: keyval.Storer.Add:input_type -> keyval.Entry
-	1, // 1: keyval.Storer.Get:input_type -> keyval.EntryRequest
-	1, // 2: keyval.Storer.Delete:input_type -> keyval.EntryRequest
-	0, // 3: keyval.Storer.Add:output_type -> keyval.Entry
-	0, // 4: keyval.Storer.Get:output_type -> keyval.Entry
+	0, // 0: keyval.Storer.Add:input_type -> keyval.Record
+	1, // 1: keyval.Storer.Get:input_type -> keyval.RecordRequest
+	1, // 2: keyval.Storer.Delete:input_type -> keyval.RecordRequest
+	0, // 3: keyval.Storer.Add:output_type -> keyval.Record
+	0, // 4: keyval.Storer.Get:output_type -> keyval.Record
 	2, // 5: keyval.Storer.Delete:output_type -> keyval.DeleteResponse
 	3, // [3:6] is the sub-list for method output_type
 	0, // [0:3] is the sub-list for method input_type

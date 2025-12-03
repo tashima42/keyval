@@ -4,17 +4,17 @@ package keyval;
 option go_package = "github.com/tashima42/keyval";
 
 service Storer {
-  rpc Add(Entry) returns (Entry) {}
-  rpc Get(EntryRequest) returns (Entry) {}
-  rpc Delete(EntryRequest) returns (DeleteResponse) {}
+  rpc Add(Record) returns (Record) {}
+  rpc Get(RecordRequest) returns (Record) {}
+  rpc Delete(RecordRequest) returns (DeleteResponse) {}
 }
 
-message Entry {
+message Record {
   string key = 1;
   string value = 2;
 };
 
-message EntryRequest {
+message RecordRequest {
   string key = 1;
 };
 
