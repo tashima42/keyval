@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"sync"
 
 	"github.com/spf13/cobra"
 	keyval "github.com/tashima42/keyval/protos"
@@ -14,8 +13,8 @@ import (
 )
 
 var (
-	port  string
-	nodes []string
+	nodes           []string
+	serverStorePath string
 )
 
 var serverCmd = &cobra.Command{
@@ -34,12 +33,21 @@ func RunServer() error {
 	}
 	s := grpc.NewServer()
 
-	server, err := server.NewServer(&sync.Map{})
+	server, err := server.NewServer(serverStorePath)
 	if err != nil {
 		return fmt.Errorf("failed to create new server: %s", err.Error())
 	}
 
-	keyval.RegisterStorerServer(s, server)
+	keyval.RegisterRaftServer(s, server)
 	log.Printf("server listening at %v", lis.Addr())
 	return s.Serve(lis)
+}
+
+func initServerSubCmd() {
+	serverCmd.Flags().StringSliceVarP(&nodes, "nodes", "n", []string{}, "cluster nodes bind addressess in 'ip:port' format")
+	if err := serverCmd.MarkFlagRequired("nodes"); err != nil {
+		log.Fatalf("failed to mark flag nodes as required: %s", err.Error())
+	}
+
+	serverCmd.Flags().StringVarP(&serverStorePath, "store-path", "s", "store.gob", "location of the persistent storage files for the server")
 }
