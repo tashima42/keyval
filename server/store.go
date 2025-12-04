@@ -52,6 +52,8 @@ func (s *storer) Restore() (*Server, error) {
 		return nil, err
 	}
 	server := &Server{}
-	err = gob.NewDecoder(f).Decode(server)
-	return server, err
+	if err = gob.NewDecoder(f).Decode(server); err != nil {
+		return nil, err
+	}
+	return server, nil
 }
