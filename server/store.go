@@ -27,11 +27,17 @@ func (s *storer) Store(data *Server) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
-	defer f.Close()
+	defer func() {
+		err = f.Close()
+	}()
 	if err != nil {
 		return err
 	}
-	return gob.NewEncoder(f).Encode(data)
+	err = gob.NewEncoder(f).Encode(data)
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 func (s *storer) Restore() (*Server, error) {
@@ -47,7 +53,9 @@ func (s *storer) Restore() (*Server, error) {
 	}
 
 	f, err := os.Open(path)
-	defer f.Close()
+	defer func() {
+		err = f.Close()
+	}()
 	if err != nil {
 		return nil, err
 	}
@@ -55,5 +63,5 @@ func (s *storer) Restore() (*Server, error) {
 	if err = gob.NewDecoder(f).Decode(server); err != nil {
 		return nil, err
 	}
-	return server, nil
+	return server, err
 }

@@ -22,6 +22,7 @@ func init() {
 
 	clientCmd.AddCommand(clientAppendCmd)
 	clientCmd.AddCommand(clientGetCmd)
+	clientCmd.AddCommand(clientAnalyzeServerCmd)
 	rootCmd.AddCommand(serverCmd)
 	rootCmd.AddCommand(clientCmd)
 }

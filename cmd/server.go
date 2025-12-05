@@ -48,7 +48,6 @@ func RunServer() error {
 		if err != nil {
 			log.Fatalf("did not connect: %v", err)
 		}
-		defer conn.Close()
 		c := keyval.NewRaftClient(conn)
 
 		peers[i] = server.NewPeer(id, address, &c)

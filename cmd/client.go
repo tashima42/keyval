@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
 	"github.com/tashima42/keyval/client"
+	"github.com/tashima42/keyval/server"
 )
 
 var clientCmd = &cobra.Command{
@@ -31,5 +33,26 @@ var clientGetCmd = &cobra.Command{
 			return fmt.Errorf("not enought args, expected 1, got %d", len(args))
 		}
 		return client.Get(args[0])
+	},
+}
+
+var clientAnalyzeServerCmd = &cobra.Command{
+	Use:   "analyze [file]",
+	Short: "analyze a server gob file",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) < 1 {
+			return fmt.Errorf("not enought args, expected 1, got %d", len(args))
+		}
+
+		storer := server.NewStorer(args[0])
+
+		s, err := storer.Restore()
+		if err != nil {
+			return err
+		}
+
+		log.Printf("Server state: %+v\n", *s)
+
+		return nil
 	},
 }

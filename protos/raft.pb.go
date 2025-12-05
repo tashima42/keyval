@@ -27,6 +27,7 @@ type Actions int32
 const (
 	Actions_ADD    Actions = 0
 	Actions_DELETE Actions = 1
+	Actions_EMPTY  Actions = 2
 )
 
 // Enum value maps for Actions.
@@ -34,10 +35,12 @@ var (
 	Actions_name = map[int32]string{
 		0: "ADD",
 		1: "DELETE",
+		2: "EMPTY",
 	}
 	Actions_value = map[string]int32{
 		"ADD":    0,
 		"DELETE": 1,
+		"EMPTY":  2,
 	}
 )
 
@@ -465,11 +468,12 @@ const file_protos_raft_proto_rawDesc = "" +
 	"\vlastLogTerm\x18\x04 \x01(\rR\vlastLogTerm\"K\n" +
 	"\x13RequestVoteResponse\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\rR\x04term\x12 \n" +
-	"\vvoteGranted\x18\x02 \x01(\bR\vvoteGranted*\x1e\n" +
+	"\vvoteGranted\x18\x02 \x01(\bR\vvoteGranted*)\n" +
 	"\aActions\x12\a\n" +
 	"\x03ADD\x10\x00\x12\n" +
 	"\n" +
-	"\x06DELETE\x10\x012\x94\x01\n" +
+	"\x06DELETE\x10\x01\x12\t\n" +
+	"\x05EMPTY\x10\x022\x94\x01\n" +
 	"\x04Raft\x12H\n" +
 	"\rAppendEntries\x12\x1a.raft.AppendEntriesRequest\x1a\x1b.raft.AppendEntriesResponse\x12B\n" +
 	"\vRequestVote\x12\x18.raft.RequestVoteRequest\x1a\x19.raft.RequestVoteResponseB\x1dZ\x1bgithub.com/tashima42/keyvalb\x06proto3"
