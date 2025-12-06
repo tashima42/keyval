@@ -31,6 +31,7 @@ const (
 var (
 	minimumElectionTimeoutMS int32 = 300
 	maximumElectionTimeoutMS int32 = 2 * minimumElectionTimeoutMS
+	heartbeatMS              int32 = 100
 )
 
 type Entry struct {
@@ -168,6 +169,7 @@ func (s *Server) applyLog() {
 }
 
 func (s *Server) AppendEntries(e *AppendEntriesRequest, res *AppendEntriesResponse) error {
+	log.Println("received append entries")
 	s.resetElectionTimeout()
 	// add mutex lock
 	res.Term = s.CurrentTerm.Get()
@@ -354,6 +356,12 @@ func (s *Server) sendHeartBeat(p *Peer) {
 		log.Printf("failed to request vote: %s\n", err.Error())
 		return
 	}
+
+	if res.Term > s.CurrentTerm.Get() {
+		s.CurrentTerm.Set(res.Term)
+		s.state.Set(serverStateFollower)
+		return
+	}
 }
 
 func (s *Server) loop() {
@@ -396,7 +404,7 @@ func (s *Server) candidateState() {
 	for range allVoted {
 		log.Println("all peers voted")
 		if s.receivedMajorityOfVotes() {
-			// allVoted <- false
+			allVoted <- false
 			log.Println("becoming leader")
 			s.state.Set(serverStateLeader)
 			s.resetElectionTimeout()
@@ -407,6 +415,17 @@ func (s *Server) candidateState() {
 
 func (s *Server) leaderState() {
 	log.Println("Leader state")
-	time.Sleep(time.Second * 10)
-	log.Fatal("Exiting, not implemented yet")
+
+	flush := make(chan struct{})
+	heartbeat := time.NewTicker(time.Duration(heartbeatMS) * time.Millisecond)
+	defer heartbeat.Stop()
+	go func() {
+		for range heartbeat.C {
+			flush <- struct{}{}
+		}
+	}()
+
+	for range flush {
+		go s.sendHeartBeats()
+	}
 }
