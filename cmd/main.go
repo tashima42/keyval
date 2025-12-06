@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var port string
+var port uint32
 
 var rootCmd = &cobra.Command{
 	Use:   "keyval",
@@ -16,7 +16,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&port, "port", "p", "5895", "server rpc bind port")
+	rootCmd.PersistentFlags().Uint32VarP(&port, "port", "p", 5891, "server rpc bind port")
 
 	initServerSubCmd()
 

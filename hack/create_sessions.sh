@@ -4,10 +4,10 @@ SESSION_NAME="raft_cluster"
 
 # Array of commands to run, separated by '|' for easy iteration
 declare -a COMMANDS=(
-  "go run . server --port='5890' --store-path='./dist/store-0.gob' --id='0' --ids '1,2,3' --addresses=':5891,:5892,:5893' | tee dist/logs-0.log"
-  "go run . server --port='5891' --store-path='./dist/store-1.gob' --id='1' --ids '0,2,3' --addresses=':5890,:5892,:5893' | tee dist/logs-1.log"
-  "go run . server --port='5892' --store-path='./dist/store-2.gob' --id='2' --ids '0,1,3' --addresses=':5890,:5891,:5893' | tee dist/logs-2.log"
-  "go run . server --port='5893' --store-path='./dist/store-3.gob' --id='3' --ids '0,1,2' --addresses=':5890,:5891,:5892' | tee dist/logs-3.log"
+  "go run . server --port='5890' --store-path='./dist/store-0.gob' --id='0' --ids '1,2,3' --addresses=':5891,:5892,:5893' 2>&1 | tee dist/0.log"
+  "go run . server --port='5891' --store-path='./dist/store-1.gob' --id='1' --ids '0,2,3' --addresses=':5890,:5892,:5893' 2>&1 | tee dist/1.log"
+  "go run . server --port='5892' --store-path='./dist/store-2.gob' --id='2' --ids '0,1,3' --addresses=':5890,:5891,:5893' 2>&1 | tee dist/2.log"
+  "go run . server --port='5893' --store-path='./dist/store-3.gob' --id='3' --ids '0,1,2' --addresses=':5890,:5891,:5892' 2>&1 | tee dist/3.log"
 )
 
 # --- 1. Create a new session and run the first command ---

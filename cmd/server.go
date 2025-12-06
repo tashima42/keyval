@@ -1,16 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
-	"net"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
-	keyval "github.com/tashima42/keyval/protos"
 	"github.com/tashima42/keyval/server"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -30,11 +30,6 @@ var serverCmd = &cobra.Command{
 
 func RunServer() error {
 	flag.Parse()
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
-	if err != nil {
-		return fmt.Errorf("failed to listen: %v", err)
-	}
-	s := grpc.NewServer()
 
 	if len(ids) != len(addresses) {
 		return fmt.Errorf("ids and addresses have different lengths: %d != %d", len(ids), len(addresses))
@@ -44,13 +39,8 @@ func RunServer() error {
 
 	for i, id := range ids {
 		address := addresses[i]
-		conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			log.Fatalf("did not connect: %v", err)
-		}
-		c := keyval.NewRaftClient(conn)
 
-		peers[i] = server.NewPeer(id, address, &c)
+		peers[i] = server.NewPeer(id, address)
 	}
 
 	server, err := server.NewServer(id, serverStorePath, peers)
@@ -58,10 +48,26 @@ func RunServer() error {
 		return fmt.Errorf("failed to create new server: %s", err.Error())
 	}
 
-	keyval.RegisterRaftServer(s, server)
-	log.Printf("server listening at %v", lis.Addr())
-	server.Start()
-	return s.Serve(lis)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel() // 'stop' is a cleanup function to unregister signal notifications
+
+	fmt.Println("Server running. Awaiting signal (SIGINT or SIGTERM).")
+
+	go func() {
+		if err := server.Start(port); err != nil {
+			log.Fatalf("failed to start server: %s\n", err.Error())
+		}
+	}()
+
+	for range ctx.Done() {
+		// The context is done (a signal was received).
+		fmt.Println("\nContext cancelled:", ctx.Err())
+		// Perform graceful shutdown procedures here, e.g., shut down an HTTP server.
+		fmt.Println("Starting graceful shutdown...")
+		time.Sleep(2 * time.Second) // Simulate cleanup work
+	}
+
+	return nil
 }
 
 func initServerSubCmd() {

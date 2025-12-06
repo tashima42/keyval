@@ -2,13 +2,13 @@
 package server
 
 import (
-	"context"
+	"fmt"
 	"log"
 	"math/rand/v2"
+	"net"
+	"net/rpc"
 	"sync"
 	"time"
-
-	kv "github.com/tashima42/keyval/protos"
 )
 
 type serverState uint8
@@ -19,17 +19,35 @@ const (
 	serverStateCandidate serverState = iota
 )
 
+type actions uint8
+
+const (
+	actionsAdd    actions = iota
+	actionsDelete actions = iota
+	actionsEmpty  actions = iota
+)
+
 // copied from https://github.com/peterbourgon/raft/blob/3e45f3d150111fb39d0b962ae51d3816fb170ee5/server.go#L29C1-L37C2
 var (
 	minimumElectionTimeoutMS int32 = 300
 	maximumElectionTimeoutMS int32 = 2 * minimumElectionTimeoutMS
 )
 
+type Entry struct {
+	Term   uint32
+	Action actions
+	Record Record
+}
+
+type Record struct {
+	Key   string
+	Value string
+}
+
 type Server struct {
-	kv.UnimplementedRaftServer
 	CurrentTerm  *pUint32
 	VotedFor     *pString
-	Log          []*kv.Entry
+	Log          []*Entry
 	CommitIndex  *pUint32
 	peers        []*Peer
 	id           *pString
@@ -47,18 +65,18 @@ type Peer struct {
 	nextIndex  *pUint32
 	matchIndex *pUint32
 	votedFor   *pString
-	grpcClient *kv.RaftClient
+	rpcClient  *RaftClient
 	mu         *sync.Mutex
 }
 
-func NewPeer(id, address string, grpcClient *kv.RaftClient) *Peer {
+func NewPeer(id, address string) *Peer {
 	return &Peer{
 		ID:         &pString{v: id},
 		Address:    &pString{v: address},
 		nextIndex:  &pUint32{v: 0},
 		matchIndex: &pUint32{v: 0},
 		votedFor:   &pString{v: ""},
-		grpcClient: grpcClient,
+		rpcClient:  NewClient(address),
 		mu:         &sync.Mutex{},
 	}
 }
@@ -72,7 +90,7 @@ func NewServer(id, serverStorePath string, peers []*Peer) (*Server, error) {
 		CurrentTerm:  &pUint32{v: 0},
 		VotedFor:     &pString{v: ""},
 		CommitIndex:  &pUint32{v: 0},
-		Log:          make([]*kv.Entry, 0),
+		Log:          make([]*Entry, 0),
 		id:           &pString{v: id},
 		leader:       &pString{v: ""},
 		lastApplied:  &pUint32{v: 0},
@@ -103,84 +121,125 @@ func NewServer(id, serverStorePath string, peers []*Peer) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) Start() {
+func (s *Server) Start(port uint32) error {
 	log.Println("starting server")
+
+	// Register the server instance with net/rpc
+	// Methods will be available as "Server.AppendEntries" etc.
+	if err := rpc.Register(s); err != nil {
+		return fmt.Errorf("failed to register rpc server: %v", err)
+	}
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return fmt.Errorf("failed to listen: %v", err)
+	}
+
+	log.Printf("Raft Server listening on port %d", port)
+
+	// Accept connections in a loop
+	go func() {
+		for {
+			conn, err := lis.Accept()
+			if err != nil {
+				log.Printf("listener accept error: %v", err)
+				continue
+			}
+			go rpc.ServeConn(conn)
+		}
+	}()
+
 	s.resetElectionTimeout()
 	go s.loop()
+	return nil
 }
 
 func (s *Server) applyLog() {
 	for _, entry := range s.Log {
-		switch entry.GetAction() {
-		case kv.Actions_ADD:
-			s.keyval[entry.GetRecord().GetKey()] = entry.GetRecord().GetValue()
-		case kv.Actions_DELETE:
-			delete(s.keyval, entry.GetRecord().GetKey())
-		case kv.Actions_EMPTY:
+		switch entry.Action {
+		case actionsAdd:
+			s.keyval[entry.Record.Key] = entry.Record.Value
+		case actionsDelete:
+			delete(s.keyval, entry.Record.Key)
+		case actionsEmpty:
 			// do nothing
 		}
 	}
 }
 
-func (s *Server) AppendEntries(ctx context.Context, e *kv.AppendEntriesRequest) (*kv.AppendEntriesResponse, error) {
+func (s *Server) AppendEntries(e *AppendEntriesRequest, res *AppendEntriesResponse) error {
 	s.resetElectionTimeout()
 	// add mutex lock
-	res := &kv.AppendEntriesResponse{Term: s.CurrentTerm.Get(), Success: false}
+	res.Term = s.CurrentTerm.Get()
+	res.Success = false
+
 	log.Println("executing append entries procedure")
 
-	if e.GetTerm() > s.CurrentTerm.Get() {
-		log.Printf("request term bigger than current server term, reverting to follower state: %d > %d\n", e.GetTerm(), s.CurrentTerm)
+	if e.Term > s.CurrentTerm.Get() {
+		log.Printf("request term bigger than current server term, reverting to follower state: %d > %d\n", e.Term, s.CurrentTerm)
 		s.state.Set(serverStateFollower)
-		return res, nil
+		return nil
 	}
 
-	if e.GetTerm() < s.CurrentTerm.Get() {
-		log.Printf("current server term bigger than request term, returning false: %d > %d\n", s.CurrentTerm, e.GetTerm())
-		return res, nil
+	if e.Term < s.CurrentTerm.Get() {
+		log.Printf("current server term bigger than request term, returning false: %d > %d\n", s.CurrentTerm, e.Term)
+		return nil
 	}
 	// add boundaries checks
-	if e.GetPrevLogIndex() > 0 && s.Log[e.GetPrevLogIndex()].GetTerm() != e.GetPrevLogTerm() {
-		log.Printf("index exists, but terms are not equal, removing local entries: %d != %d", e.GetPrevLogIndex(), s.Log[e.GetPrevLogIndex()].GetTerm())
-		s.Log = s.Log[:e.GetPrevLogIndex()]
-		return res, nil
+	if e.PrevLogIndex > 0 && s.Log[e.PrevLogIndex].Term != e.PrevLogTerm {
+		log.Printf("index exists, but terms are not equal, removing local entries: %d != %d", e.PrevLogIndex, s.Log[e.PrevLogIndex].Term)
+		s.Log = s.Log[:e.PrevLogIndex]
+		return nil
 	}
 
-	s.Log = append(s.Log, e.GetEntries()...)
+	s.Log = append(s.Log, e.Entries...)
 
-	if e.GetLeaderCommit() > s.CommitIndex.Get() {
-		s.CommitIndex.Set(min(e.GetLeaderCommit(), s.CommitIndex.Get()))
+	if e.LeaderCommit > s.CommitIndex.Get() {
+		s.CommitIndex.Set(min(e.LeaderCommit, s.CommitIndex.Get()))
 	}
 
 	res.Success = true
-	return res, nil
+	return nil
 }
 
-func (s *Server) RequestVote(ctx context.Context, r *kv.RequestVoteRequest) (*kv.RequestVoteResponse, error) {
-	log.Printf("received vote request: %+v\n", r)
-	if r.GetTerm() > s.CurrentTerm.Get() {
-		log.Printf("request term bigger than current term, reverting to follower: %d > %d\n", r.GetTerm(), s.CurrentTerm)
-		s.CurrentTerm.Set(r.GetTerm())
+func (s *Server) RequestVote(r *RequestVoteRequest, res *RequestVoteResponse) error {
+	log.Printf("received vote request:\n  ID: %s\n  Term: %d\n  LastLogIndex: %d\n  LastLogTerm: %d\n", r.CandidateID, r.Term, r.LastLogIndex, r.LastLogTerm)
+	if r.Term > s.CurrentTerm.Get() {
+		log.Printf("request term bigger than current term, reverting to follower: %d > %d\n", r.Term, s.CurrentTerm.Get())
+		s.CurrentTerm.Set(r.Term)
 		s.state.Set(serverStateFollower)
 		s.VotedFor.Set("")
 	}
-	if r.GetTerm() < s.CurrentTerm.Get() {
-		log.Printf("request term smaller than current term, denying vote: %d < %d\n", r.GetTerm(), s.CurrentTerm)
-		return &kv.RequestVoteResponse{Term: s.CurrentTerm.Get(), VoteGranted: false}, nil
+	if r.Term < s.CurrentTerm.Get() {
+		log.Printf("request term smaller than current term, denying vote: %d < %d\n", r.Term, s.CurrentTerm.Get())
+
+		res.Term = s.CurrentTerm.Get()
+		res.VoteGranted = false
+		return nil
 	}
 	var lastTerm uint32 = 0
 	if len(s.Log) > 0 {
-		lastTerm = s.Log[len(s.Log)-1].GetTerm()
+		lastTerm = s.Log[len(s.Log)-1].Term
 	}
-	validLog := (r.GetLastLogTerm() > lastTerm) || (r.GetLastLogTerm() == lastTerm && r.GetLastLogIndex() >= s.CommitIndex.Get())
-	if (s.VotedFor.Get() == "" || s.VotedFor.Get() == r.GetCandidateId()) && validLog && r.GetTerm() == s.CurrentTerm.Get() {
-		s.VotedFor.Set(r.GetCandidateId())
-		s.resetElectionTimeout()
-		// if err := s.storer.Store(s); err != nil {
-		// 	return nil, err
-		// }
-		return &kv.RequestVoteResponse{Term: s.CurrentTerm.Get(), VoteGranted: true}, nil
+	if s.VotedFor.Get() != "" && s.VotedFor.Get() != r.CandidateID {
+
+		res.Term = s.CurrentTerm.Get()
+		res.VoteGranted = false
+		return nil
 	}
-	return &kv.RequestVoteResponse{Term: s.CurrentTerm.Get(), VoteGranted: false}, nil
+
+	if s.CommitIndex.Get() > r.LastLogIndex || lastTerm > r.LastLogTerm {
+
+		res.Term = s.CurrentTerm.Get()
+		res.VoteGranted = false
+		return nil
+	}
+
+	log.Println("responding vote with true")
+
+	res.Term = s.CurrentTerm.Get()
+	res.VoteGranted = true
+	return nil
 }
 
 func (s *Server) resetElectionTimeout() {
@@ -190,28 +249,31 @@ func (s *Server) resetElectionTimeout() {
 	s.electionTick = time.NewTimer(time.Duration(d) * time.Millisecond).C
 }
 
-func (s *Server) requestVotes() error {
-	var wg sync.WaitGroup
+func (s *Server) requestVotes() chan bool {
+	allVoted := make(chan bool)
 
-	for _, peer := range s.peers {
-		peer.votedFor.Set("")
-		log.Printf("requesting vote from peer: %s\n", peer.ID.Get())
-		wg.Go(func() { s.requestVote(peer) })
-	}
+	go func(allVoted chan bool) {
+		var wg sync.WaitGroup
 
-	wg.Wait()
-	log.Println("exiting request vote")
-	return nil
+		for _, peer := range s.peers {
+			peer.votedFor.Set("")
+			log.Printf("requesting vote from peer: %s\n", peer.ID.Get())
+			wg.Go(func() { s.requestVote(peer) })
+		}
+		wg.Wait()
+
+		allVoted <- true
+	}(allVoted)
+
+	return allVoted
 }
 
 func (s *Server) requestVote(p *Peer) {
-	c := *p.grpcClient
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*200)
-	defer cancel()
+	c := *p.rpcClient
 	log.Printf("sending vote request rpc to %s\n", p.ID.Get())
-	res, err := c.RequestVote(ctx, &kv.RequestVoteRequest{
+	res, err := c.SendRequestVote(RequestVoteRequest{
 		Term:         s.CurrentTerm.Get(),
-		CandidateId:  s.id.Get(),
+		CandidateID:  s.id.Get(),
 		LastLogIndex: s.lastApplied.Get(),
 		LastLogTerm:  s.lastLogTerm(),
 	})
@@ -222,9 +284,9 @@ func (s *Server) requestVote(p *Peer) {
 	}
 
 	// if RPC request or response contains term T > currentTerm: set current term = T, convert to follower 5.1
-	log.Printf("checking terms %d > %d\n", res.GetTerm(), s.CurrentTerm.Get())
-	if res.GetTerm() > s.CurrentTerm.Get() {
-		s.CurrentTerm.Set(res.GetTerm())
+	log.Printf("checking terms %d > %d\n", res.Term, s.CurrentTerm.Get())
+	if res.Term > s.CurrentTerm.Get() {
+		s.CurrentTerm.Set(res.Term)
 		s.state.Set(serverStateFollower)
 		s.resetElectionTimeout()
 		// if err := s.storer.Store(s); err != nil {
@@ -234,10 +296,10 @@ func (s *Server) requestVote(p *Peer) {
 		return
 	}
 
-	log.Printf("checking if vote was granted: %t\n", res.GetVoteGranted())
-	if res.GetVoteGranted() {
+	log.Printf("checking if vote was granted: %t\n", res.VoteGranted)
+	if res.VoteGranted {
 		log.Printf("vote granted from %s\n", p.ID.Get())
-		p.votedFor.Set(p.ID.Get())
+		p.votedFor.Set(s.id.Get())
 	}
 }
 
@@ -245,54 +307,53 @@ func (s *Server) requestVote(p *Peer) {
 // from a majority of the servers in the full cluster for the same term.
 // Only call this function after requesting votes
 func (s *Server) receivedMajorityOfVotes() bool {
+	log.Println("counting votes")
 	votes := 0
 
 	for _, p := range s.peers {
+		log.Printf("checking peer vote: %s => %s\n", p.ID.Get(), p.votedFor.Get())
 		if p.votedFor.Get() == s.id.Get() {
+			log.Printf("peer voted for server: %s\n", p.ID.Get())
 			votes++
 		}
 	}
 
 	majority := len(s.peers)/2 + 1
+	log.Printf("checking if votes are majority: %d >= %d\n", votes, majority)
 
 	return votes >= majority
 }
-
-// func (s *Server) becomeLeader() {
-// 	s.mu.Lock()
-// 	defer s.mu.Unlock()
-//
-// 	votes := 0
-// 	for _, p := range s.peers {
-// 		if p.votedFor == s.id {
-// 			log.Printf("adding vote: %s => %s\n", p.ID, p.votedFor)
-// 			votes++
-// 		}
-// 	}
-//
-// 	log.Printf("checking peer votes: %d > %d\n", votes, len(s.peers)/2+1)
-// 	if votes >= len(s.peers)/2+1 {
-// 		for _, p := range s.peers {
-// 			p.nextIndex = uint32(len(s.Log) + 1)
-// 			p.matchIndex = 0
-// 		}
-//
-// 		s.state = serverStateLeader
-//
-// 		s.Log = append(s.Log, &kv.Entry{Term: s.CurrentTerm, Action: kv.Actions_EMPTY, Record: nil})
-// 		if err := s.storer.Store(s); err != nil {
-// 			log.Printf("error storing server state:  %s\n", err.Error())
-// 		}
-//
-// 		// s.heartbeatTimeout = time.Now()
-// 	}
-// }
 
 func (s *Server) lastLogTerm() uint32 {
 	if len(s.Log) <= 0 {
 		return 0
 	}
 	return s.Log[len(s.Log)-1].Term
+}
+
+func (s *Server) sendHeartBeats() {
+	for _, peer := range s.peers {
+		log.Printf("sending heartbeat to peer: %s\n", peer.ID.Get())
+		go s.sendHeartBeat(peer)
+	}
+}
+
+func (s *Server) sendHeartBeat(p *Peer) {
+	c := *p.rpcClient
+	log.Printf("sending append entries rpc to %s\n", p.ID.Get())
+	res, err := c.SendAppendEntries(AppendEntriesRequest{
+		Term:         s.CurrentTerm.Get(),
+		LeaderID:     s.id.Get(),
+		PrevLogIndex: s.CommitIndex.Get() - 1,
+		PrevLogTerm:  s.lastLogTerm(),
+		Entries:      []*Entry{},
+		LeaderCommit: s.CommitIndex.Get(),
+	})
+	if err != nil {
+		// tratar erro
+		log.Printf("failed to request vote: %s\n", err.Error())
+		return
+	}
 }
 
 func (s *Server) loop() {
@@ -330,17 +391,22 @@ func (s *Server) followerState() {
 }
 
 func (s *Server) candidateState() {
-	if err := s.requestVotes(); err != nil {
-		log.Fatalf("failed to request votes: %s\n", err.Error())
-	}
-	if s.receivedMajorityOfVotes() {
-		s.state.Set(serverStateLeader)
-		s.resetElectionTimeout()
+	allVoted := s.requestVotes()
+
+	for range allVoted {
+		log.Println("all peers voted")
+		if s.receivedMajorityOfVotes() {
+			// allVoted <- false
+			log.Println("becoming leader")
+			s.state.Set(serverStateLeader)
+			s.resetElectionTimeout()
+			return
+		}
 	}
 }
 
 func (s *Server) leaderState() {
 	log.Println("Leader state")
-	time.Sleep(time.Second * 100)
+	time.Sleep(time.Second * 10)
 	log.Fatal("Exiting, not implemented yet")
 }
